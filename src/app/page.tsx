@@ -1,69 +1,92 @@
-import Image from "next/image";
+import Link from "next/link";
+import { type SanityDocument } from "next-sanity";
 
-export default function Home() {
+import { client } from "@/sanity/client";
+
+const POSTS_QUERY = `*[
+  _type == "post"
+  && defined(slug.current)
+]|order(publishedAt desc)[0...12]{_id, title, slug, publishedAt}`;
+
+const options = { next: { revalidate: 30 } };
+
+// Monday-start of the week containing `date`.
+function getWeekStart(date: Date) {
+  const start = new Date(date);
+  const day = start.getDay(); // 0 (Sun) - 6 (Sat)
+  const diff = (day + 6) % 7; // days since Monday
+  start.setDate(start.getDate() - diff);
+  start.setHours(0, 0, 0, 0);
+  return start;
+}
+
+// ISO 8601 week number (weeks start Monday, week 1 contains the first Thursday of the year).
+function getISOWeekNumber(weekStart: Date) {
+  const thursday = new Date(weekStart);
+  thursday.setDate(thursday.getDate() + 3);
+
+  const yearStart = new Date(thursday.getFullYear(), 0, 1);
+  const daysSinceYearStart = Math.floor(
+    (thursday.getTime() - yearStart.getTime()) / 86400000,
+  );
+
+  return Math.floor(daysSinceYearStart / 7) + 1;
+}
+
+function formatWeekLabel(weekStart: Date) {
+  return `Uge ${getISOWeekNumber(weekStart)}`;
+}
+
+function groupPostsByWeek(posts: SanityDocument[]) {
+  const groups = new Map<number, { weekStart: Date; posts: SanityDocument[] }>();
+
+  for (const post of posts) {
+    const weekStart = getWeekStart(new Date(post.publishedAt));
+    const key = weekStart.getTime();
+
+    if (!groups.has(key)) {
+      groups.set(key, { weekStart, posts: [] });
+    }
+    groups.get(key)!.posts.push(post);
+  }
+
+  for (const group of groups.values()) {
+    group.posts.sort(
+      (a, b) => new Date(a.publishedAt).getTime() - new Date(b.publishedAt).getTime(),
+    );
+  }
+
+  return Array.from(groups.values()).sort(
+    (a, b) => b.weekStart.getTime() - a.weekStart.getTime(),
+  );
+}
+
+export default async function IndexPage() {
+  const posts = await client.fetch<SanityDocument[]>(POSTS_QUERY, {}, options);
+  const weekGroups = groupPostsByWeek(posts);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className="container mx-auto min-h-screen max-w-3xl p-8">
+      <h1 className="font-playfair text-6xl font-bold text-blue-900">LOG</h1>
+      <h2 className="font-dosis mb-4 text-pink-500">NoA Ignite</h2>
+      <div className="flex flex-col gap-y-8">
+        {weekGroups.map(({ weekStart, posts }) => (
+          <section key={weekStart.getTime()}>
+            <h3 className="mb-2 mt-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
+              {formatWeekLabel(weekStart)}
+            </h3>
+            <ul className="flex flex-col gap-y-2">
+              {posts.map((post) => (
+                <li className="hover:underline" key={post._id}>
+                  <Link href={`/${post.slug.current}`}>
+                    <h2 className="font-dosis text-lg font-semibold">{post.title}</h2>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </main>
   );
 }
