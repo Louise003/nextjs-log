@@ -69,7 +69,7 @@ export default async function IndexPage() {
     <main className="container mx-auto min-h-screen max-w-3xl p-8">
       <h1 className="font-playfair text-6xl font-bold text-blue-900">LOG</h1>
       <h2 className="font-dosis mb-4 text-pink-500">NoA Ignite</h2>
-      <div className="flex flex-col gap-y-8">
+      <div className="grid grid-cols-3 gap-x-8">
         {weekGroups.map(({ weekStart, posts }) => (
           <section key={weekStart.getTime()}>
             <h3 className="mb-2 mt-4 text-sm font-semibold uppercase tracking-wide text-gray-500">
