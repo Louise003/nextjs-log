@@ -57,7 +57,7 @@ function groupPostsByWeek(posts: SanityDocument[]) {
   }
 
   return Array.from(groups.values()).sort(
-    (a, b) => b.weekStart.getTime() - a.weekStart.getTime(),
+    (a, b) => a.weekStart.getTime() - b.weekStart.getTime(),
   );
 }
 
